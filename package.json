@@ -1,0 +1,15 @@
+{
+    "name": "roon-spacenav",
+    "version": "1.0.0",
+    "description": "A volume control Roon Extension for the SpaceNavigator space mouse.",
+    "main": "app.js",
+    "author": "Klaus Engel",
+    "license": "MIT",
+    "dependencies": {
+        "node-roon-api": "github:roonlabs/node-roon-api",
+        "node-roon-api-settings": "github:roonlabs/node-roon-api-settings",
+        "node-roon-api-status": "github:roonlabs/node-roon-api-status",
+        "node-roon-api-transport": "github:roonlabs/node-roon-api-transport",
+        "node-hid": "^0.7.9"
+    }
+}
