@@ -16,14 +16,15 @@ var playingstate = '';
 var roon = new RoonApi({
     extension_id:        'de.angisoft.roonspacenav',
     display_name:        "Space Navigator Volume Control",
-    display_version:     "1.0.0",
+    display_version:     "1.1.0",
     publisher:           'Klaus Engel',
     log_level: 			 "none", 
     email:               'klaus.engel@gmail.com',
-    website:             'https://www.angisoft.de',
+    website:             'https://github.com/KlausDEngel/roon-spacenav',
 
     core_paired: function(core_) {
         core = core_;
+    	lastTime = Date.now();
 
         let transport = core.services.RoonApiTransport;
         transport.subscribe_zones(function(cmd, data) {
@@ -54,14 +55,15 @@ var roon = new RoonApi({
 
 var mysettings = Object.assign({
     zone:             null,
-    sensitivity: 20
+    sensitivity: 20,
+    sensitivitySeek: 20
 }, roon.load_config("settings") || {});
 
 function makelayout(settings) {
     var l = {
         values:    settings,
-	layout:    [],
-	has_error: false
+		layout:    [],
+		has_error: false
     };
 
     l.layout.push({
@@ -81,20 +83,34 @@ function makelayout(settings) {
 	setting: "led",
     });
 
-    if (settings.longpressaction != "none") {
-	let v = {
-	    type:    "integer",
-	    min:     1,
-	    max:     100,
-	    title:   "Sensitivity",
-	    setting: "sensitivity"
-	};
-	if (settings.sensitivity < v.min || settings.sensitivity > v.max) {
-	    v.error = "Sensitivity must be between 1 and 100.";
-	    l.has_error = true; 
+    if (settings.sensitivity != "none") {
+		let v = {
+		    type:    "integer",
+		    min:     1,
+		    max:     100,
+		    title:   "Volume Sensitivity",
+		    setting: "sensitivity"
+		};
+		if (settings.sensitivity < v.min || settings.sensitivity > v.max) {
+		    v.error = "Sensitivity must be between 1 and 100.";
+		    l.has_error = true; 
+		}
+	    l.layout.push(v);
 	}
-        l.layout.push(v);
-    }
+    if (settings.sensitivitySeek != "none") {
+		let v = {
+		    type:    "integer",
+		    min:     1,
+		    max:     100,
+		    title:   "Seek Sensitivity",
+		    setting: "sensitivitySeek"
+		};
+		if (settings.sensitivitySeek < v.min || settings.sensitivitySeek > v.max) {
+		    v.error = "Seek Sensitivity must be between 1 and 100.";
+		    l.has_error = true; 
+		}
+	    l.layout.push(v);
+	}
 
     return l;
 }
@@ -129,9 +145,6 @@ function update_status() {
     else
 		svc_status.set_status("Could not find USB device.", true)
 }
-
-roon.start_discovery();
-setInterval(() => { if (!spacenav.hid) setup_spacenav(); }, 1000);
 
 function getAllDevices()
 {
@@ -230,31 +243,62 @@ SpaceNavigator.prototype.interpretData = function(data) {
     }
  };
 
+var lastTime;
+
 var spacenav;
 function setup_spacenav() {
+	try {
 	spacenav = new SpaceNavigator();
 	spacenav.on('translate', (translation) => {
-	//    console.log('translate: ', JSON.stringify(translation));
-	//    try {
-	//	    if (translation.y != 0.)
-	//    		core.services.RoonApiTransport.seek(mysettings.zone, 'relative', -1 * translation.y);
-	// 	} catch (e) {}
+	    //console.log('translate: ', JSON.stringify(translation));
+
+     if (!core) return;
+
+	    try {
+		    if (Math.abs(translation.x) > 0.5)
+			{
+				if ((Date.now() - lastTime) > 50)
+			    {
+		    		core.services.RoonApiTransport.seek(mysettings.zone, 'relative', -mysettings.sensitivitySeek/4. * translation.x);
+			    	lastTime = Date.now();
+			    }
+			}
+			else
+	    	if (Math.abs(translation.y) > .5)
+			{
+				if ((Date.now() - lastTime) > 500)
+		    	{
+					core.services.RoonApiTransport.control(mysettings.zone, 'playpause');
+			    	lastTime = Date.now();
+		    	}
+		    }
+		} catch (e) {}
 	});
 
 	spacenav.on('rotate', (rotation) => {
 	//    console.log('rotate: ', JSON.stringify(rotation));
 	//    console.log(JSON.stringify(rotation.y));
 
-	     if (!core) return;
+     if (!core) return;
 
 	    try {
 		    if (rotation.y != 0.)
-	    		core.services.RoonApiTransport.change_volume(mysettings.zone, 'relative_step', -1 * rotation.y * mysettings.sensitivity/20.);
+		    {
+				if ((Date.now() - lastTime) > 500)
+		    		core.services.RoonApiTransport.change_volume(mysettings.zone, 'relative_step', -1 * rotation.y * mysettings.sensitivity/20.);
+		    }
 	 	} catch (e) {}
 	});
+
 	update_status();
 	update_led();
+    } catch (e) {
+//	console.log(e);
+    }	
 }
 
 setup_spacenav();
 update_status();
+
+roon.start_discovery();
+setInterval(() => { if (!spacenav.hid) setup_spacenav(); }, 1000);
