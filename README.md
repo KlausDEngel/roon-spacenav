@@ -5,7 +5,7 @@ Controls:
 - Rotate left and right to change volume
 - Translate x-axis to seek
 - Press down to play/pause
-- pressm left/right button for previous/next track 
+- press left/right button for previous/next track 
 
 ```
 ##Usage
