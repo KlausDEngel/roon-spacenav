@@ -54,7 +54,8 @@ var roon = new RoonApi({
 });
 
 var mysettings = Object.assign({
-    zone:             null,
+    zone: null,
+    led: "whenplaying",
     sensitivity: 20,
     sensitivitySeek: 20
 }, roon.load_config("settings") || {});
