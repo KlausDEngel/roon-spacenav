@@ -9,6 +9,8 @@ Controls:
 
 ```
 ##Usage
+git clone https://github.com/KlausDEngel/roon-spacenav
+cd roon-spacenav
 npm install
 node .
 ```
