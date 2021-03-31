@@ -13,6 +13,9 @@ var allDevices;
 var core;
 var playingstate = '';
 
+var VENDOR_ID = 0x046D;
+var PRODUCT_ID = 0xC626;
+
 var roon = new RoonApi({
     extension_id:        'de.angisoft.roonspacenav',
     display_name:        "Space Navigator Volume Control",
@@ -150,7 +153,7 @@ function update_status() {
 function getAllDevices()
 {
     if (!allDevices) {
-        allDevices = HID.devices(1133, 50726);
+        allDevices = HID.devices(VENDOR_ID, PRODUCT_ID);
     }
     return allDevices;
 }
