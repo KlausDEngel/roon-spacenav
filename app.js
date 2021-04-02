@@ -25,10 +25,10 @@ var UR_PRODUCT_ID = 0xC652;
 
 var roon = new RoonApi({
     extension_id:        'de.angisoft.roonspacenav',
-    display_name:        "SpaceMouse Volume Control",
-    display_version:     "1.1.0",
+    display_name:        'SpaceMouse Volume Control',
+    display_version:     '1.2.0',
     publisher:           'Klaus Engel',
-    log_level: 			 "none", 
+    log_level:           'none', 
     email:               'klaus.engel@gmail.com',
     website:             'https://github.com/KlausDEngel/roon-spacenav',
 
