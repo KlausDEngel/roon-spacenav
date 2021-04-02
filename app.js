@@ -6,6 +6,7 @@ var RoonApi = require("node-roon-api"),
     RoonApiTransport = require('node-roon-api-transport');
 
 var HID = require('node-hid');
+HID.setDriverType('libusb');
 var util = require('util');
 var events = require('events');
 
@@ -13,12 +14,18 @@ var allDevices;
 var core;
 var playingstate = '';
 
-var VENDOR_ID = 0x046D;
-var PRODUCT_ID = 0xC626;
+var SN_VENDOR_ID = 0x046D;
+var SN_PRODUCT_ID = 0xC626;
+var SMC_VENDOR_ID = 0x256F;
+var SMC_PRODUCT_ID = 0xC635;
+var SMW_VENDOR_ID = 0x256F;
+var SMW_PRODUCT_ID = 0xC62E;
+var UR_VENDOR_ID = 0x256F;
+var UR_PRODUCT_ID = 0xC652;
 
 var roon = new RoonApi({
     extension_id:        'de.angisoft.roonspacenav',
-    display_name:        "Space Navigator Volume Control",
+    display_name:        "SpaceMouse Volume Control",
     display_version:     "1.1.0",
     publisher:           'Klaus Engel',
     log_level: 			 "none", 
@@ -57,7 +64,7 @@ var roon = new RoonApi({
 });
 
 var mysettings = Object.assign({
-    zone: null,
+    zone:             null,
     led: "whenplaying",
     sensitivity: 20,
     sensitivitySeek: 20
@@ -143,19 +150,39 @@ roon.init_services({
     provided_services:   [ svc_settings, svc_status ],
 });
 
-function update_status() {
-    if (spacenav.hid)
-		svc_status.set_status("Connected to 1 USB device.", false);
-    else
-		svc_status.set_status("Could not find USB device.", true)
-}
-
 function getAllDevices()
 {
     if (!allDevices) {
-        allDevices = HID.devices(VENDOR_ID, PRODUCT_ID);
+        allDevices = HID.devices(SMC_VENDOR_ID, SMC_PRODUCT_ID);
+		if (allDevices.length)
+			console.log("SpaceMouse Compact found.");
+		if (!allDevices.length) {
+	        allDevices = HID.devices(SMW_VENDOR_ID, SMW_PRODUCT_ID);
+			if (allDevices.length)
+				console.log("SpaceMouse Wireless found.");
+			if (!allDevices.length) {
+		        allDevices = HID.devices(SN_VENDOR_ID, SN_PRODUCT_ID);
+				if (allDevices.length)
+					console.log("SpaceNavigator found.");
+				if (!allDevices.length) {
+			        allDevices = HID.devices(UR_VENDOR_ID, UR_PRODUCT_ID);
+					if (allDevices.length)
+						console.log("Universal Receiver found.");
+					else
+						console.log("No devices found.");
+				}
+	        }
+
+		}
     }
     return allDevices;
+}
+
+function update_status() {
+    if (spacenav &&spacenav.hid)
+		svc_status.set_status("Connected to 1 USB device.", false);
+    else
+		svc_status.set_status("Could not find USB device.", true)
 }
 
 function update_led() {
@@ -188,7 +215,8 @@ function SpaceNavigator(index)
 
     var spaceNavs = getAllDevices();
     if (!spaceNavs.length) {
-        throw new Error("No SpaceNavigator could be found");
+//        console.log("No Space Mouse Compact or SpaceNavigator could be found");
+        throw new Error("No Space Mouse could be found");
     }
     if (index > spaceNavs.length || index < 0) {
         throw new Error("Index " + index + " out of range, only " + spaceNavs.length + " SpaceNavigators found");
@@ -200,7 +228,7 @@ function SpaceNavigator(index)
     }
 
     try {
-	    this.hid = new HID.HID(spaceNavs[index].path);
+		    this.hid = new HID.HID(spaceNavs[index].path);
     	//this.hid.write([0x04, 0x01]);
     	this.hid.on('data', this.interpretData.bind(this));
     } catch (e) {}
@@ -254,7 +282,7 @@ function setup_spacenav() {
 	try {
 	spacenav = new SpaceNavigator();
 	spacenav.on('translate', (translation) => {
-	    //console.log('translate: ', JSON.stringify(translation));
+//	    console.log('translate: ', JSON.stringify(translation));
 
      if (!core) return;
 
@@ -280,7 +308,7 @@ function setup_spacenav() {
 	});
 
 	spacenav.on('rotate', (rotation) => {
-	//    console.log('rotate: ', JSON.stringify(rotation));
+//	console.log('rotate: ', JSON.stringify(rotation));
 	//    console.log(JSON.stringify(rotation.y));
 
      if (!core) return;
@@ -297,12 +325,13 @@ function setup_spacenav() {
 	update_status();
 	update_led();
     } catch (e) {
-//	console.log(e);
+	console.log(e);
     }	
 }
 
 setup_spacenav();
 update_status();
 
+
 roon.start_discovery();
-setInterval(() => { if (!spacenav.hid) setup_spacenav(); }, 1000);
+setInterval(() => { if (!spacenav || !spacenav.hid) setup_spacenav(); }, 1000);
