@@ -1,7 +1,7 @@
 {
     "name": "roon-spacenav",
-    "version": "1.0.0",
-    "description": "A volume control Roon Extension for the SpaceNavigator space mouse.",
+    "version": "1.2.0",
+    "description": "A volume control Roon Extension for 3Dconnexion Space Mice.",
     "main": "app.js",
     "author": "Klaus Engel",
     "license": "MIT",
