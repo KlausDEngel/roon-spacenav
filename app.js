@@ -13,28 +13,32 @@ var events = require('events');
 var allDevices;
 var core;
 var playingstate = '';
+var wireless = '';
 
-var SN_VENDOR_ID = 0x046D;
-var SN_PRODUCT_ID = 0xC626;
-var SMC_VENDOR_ID = 0x256F;
-var SMC_PRODUCT_ID = 0xC635;
-var SMW_VENDOR_ID = 0x256F;
-var SMW_PRODUCT_ID = 0xC62E;
-var UR_VENDOR_ID = 0x256F;
-var UR_PRODUCT_ID = 0xC652;
+const SN_VENDOR_ID = 0x046D;
+const SN_PRODUCT_ID = 0xC626;
+const SMC_VENDOR_ID = 0x256F;
+const SMC_PRODUCT_ID = 0xC635;
+const SMW_VENDOR_ID = 0x256F;
+const SMW_PRODUCT_ID = 0xC62E;
+const UR_VENDOR_ID = 0x256F;
+const UR_PRODUCT_ID = 0xC652;
+
+const seekRate = 50;
+const seekTimeOut = 500;
+const playPauseTimeOut = 500;
 
 var roon = new RoonApi({
     extension_id:        'de.angisoft.roonspacenav',
     display_name:        'SpaceMouse Volume Control',
     display_version:     '1.2.0',
     publisher:           'Klaus Engel',
-    log_level:           'none', 
+    log_level: 			 'none', 
     email:               'klaus.engel@gmail.com',
     website:             'https://github.com/KlausDEngel/roon-spacenav',
 
     core_paired: function(core_) {
         core = core_;
-    	lastTime = Date.now();
 
         let transport = core.services.RoonApiTransport;
         transport.subscribe_zones(function(cmd, data) {
@@ -55,6 +59,7 @@ var roon = new RoonApi({
 		    });
 		}
 	    } catch (e) {
+	    	console.log(e);
 	    }
 	});
     },
@@ -67,7 +72,9 @@ var mysettings = Object.assign({
     zone:             null,
     led: "whenplaying",
     sensitivity: 20,
-    sensitivitySeek: 20
+    sensitivitySeek: 20,
+    thresholdSeek: 25,
+    thresholdPlayPause: 40
 }, roon.load_config("settings") || {});
 
 function makelayout(settings) {
@@ -122,6 +129,34 @@ function makelayout(settings) {
 		}
 	    l.layout.push(v);
 	}
+    if (settings.thresholdSeek != "none") {
+		let v = {
+		    type:    "integer",
+		    min:     1,
+		    max:     100,
+		    title:   "Seek Threshold",
+		    setting: "thresholdSeek"
+		};
+		if (settings.thresholdSeek < v.min || settings.thresholdSeek > v.max) {
+		    v.error = "Seek Threshold must be between 1 and 100.";
+		    l.has_error = true; 
+		}
+	    l.layout.push(v);
+	}
+    if (settings.thresholdPlayPause != "none") {
+		let v = {
+		    type:    "integer",
+		    min:     1,
+		    max:     100,
+		    title:   "Play/Pause Threshold",
+		    setting: "thresholdPlayPause"
+		};
+		if (settings.thresholdPlayPause < v.min || settings.thresholdPlayPause > v.max) {
+		    v.error = "Play/Pause Threshold must be between 1 and 100.";
+		    l.has_error = true; 
+		}
+	    l.layout.push(v);
+	}
 
     return l;
 }
@@ -159,7 +194,10 @@ function getAllDevices()
 		if (!allDevices.length) {
 	        allDevices = HID.devices(SMW_VENDOR_ID, SMW_PRODUCT_ID);
 			if (allDevices.length)
+			{
 				console.log("SpaceMouse Wireless found.");
+				wireless = 'true';
+			}
 			if (!allDevices.length) {
 		        allDevices = HID.devices(SN_VENDOR_ID, SN_PRODUCT_ID);
 				if (allDevices.length)
@@ -167,7 +205,10 @@ function getAllDevices()
 				if (!allDevices.length) {
 			        allDevices = HID.devices(UR_VENDOR_ID, UR_PRODUCT_ID);
 					if (allDevices.length)
+					{
 						console.log("Universal Receiver found.");
+						wireless = 'true';
+					}
 					else
 						console.log("No devices found.");
 				}
@@ -219,7 +260,7 @@ function SpaceNavigator(index)
         throw new Error("No Space Mouse could be found");
     }
     if (index > spaceNavs.length || index < 0) {
-        throw new Error("Index " + index + " out of range, only " + spaceNavs.length + " SpaceNavigators found");
+        throw new Error("Index " + index + " out of range, only " + spaceNavs.length + " Space Mice found");
     }
 
     if (this.hid) {
@@ -231,7 +272,9 @@ function SpaceNavigator(index)
 		    this.hid = new HID.HID(spaceNavs[index].path);
     	//this.hid.write([0x04, 0x01]);
     	this.hid.on('data', this.interpretData.bind(this));
-    } catch (e) {}
+    } catch (e) {
+			console.log(e);
+    }
  }
 
 util.inherits(SpaceNavigator, events.EventEmitter);
@@ -257,21 +300,42 @@ SpaceNavigator.prototype.interpretData = function(data) {
     {
        	try {
         	if (data[1] == 2)
-        		core.services.RoonApiTransport.control(mysettings.zone, 'next');
+        	{
+//			    console.log('Button right!');
+			    if (core)
+	        		core.services.RoonApiTransport.control(mysettings.zone, 'next');
+        	}
 	    	if (data[1] == 1)
-        		core.services.RoonApiTransport.control(mysettings.zone, 'previous');
+	    	{
+//			    console.log('Button left!');
+			    if (core)
+	        		core.services.RoonApiTransport.control(mysettings.zone, 'previous');
+	    	}
 
       	} catch (e) {}
       	return;
     }
    var transform = parseData.apply(parseData, data.slice(1));
-    if (data[0] === 1)
-    {
-    	this.emit('translate', transform);
+	if (wireless == "true")
+	{
+    	if (data[0] === 1)
+    	{
+			var transform2 = parseData.apply(parseData, data.slice(7));
+	    	this.emit('translate', transform);
+	    	this.emit('rotate', transform2);
+    	}
     }
-    if (data[0] === 2)
+	else
     {
-    	this.emit('rotate', transform);
+    	if (data[0] === 1)
+    	{
+	    	this.emit('translate', transform);
+	    }
+	    else
+	    if (data[0] === 2)
+	    {
+    		this.emit('rotate', transform);
+    	}
     }
  };
 
@@ -281,45 +345,58 @@ var spacenav;
 function setup_spacenav() {
 	try {
 	spacenav = new SpaceNavigator();
+	lastTime = Date.now();
 	spacenav.on('translate', (translation) => {
 //	    console.log('translate: ', JSON.stringify(translation));
 
-     if (!core) return;
+//     if (!core) return;
 
 	    try {
-		    if (Math.abs(translation.x) > 0.5)
+		    if (Math.abs(translation.x) > mysettings.thresholdSeek/100.)
 			{
-				if ((Date.now() - lastTime) > 50)
+				if ((Date.now() - lastTime) > seekRate)
 			    {
-		    		core.services.RoonApiTransport.seek(mysettings.zone, 'relative', -mysettings.sensitivitySeek/4. * translation.x);
+//				    console.log('seek: ', JSON.stringify(translation.x));
+				    if (core)
+			    		core.services.RoonApiTransport.seek(mysettings.zone, 'relative', -mysettings.sensitivitySeek/4. * translation.x);
 			    	lastTime = Date.now();
 			    }
 			}
 			else
-	    	if (Math.abs(translation.y) > .5)
+	    	if (Math.abs(translation.y) > mysettings.thresholdPlayPause/100.)
 			{
-				if ((Date.now() - lastTime) > 500)
+				if ((Date.now() - lastTime) > playPauseTimeOut)
 		    	{
-					core.services.RoonApiTransport.control(mysettings.zone, 'playpause');
+//				    console.log('Play/Pause!');
+				    if (core)
+						core.services.RoonApiTransport.control(mysettings.zone, 'playpause');
 			    	lastTime = Date.now();
 		    	}
 		    }
-		} catch (e) {}
+		} catch (e) {
+			console.log(e);
+		}
 	});
 
 	spacenav.on('rotate', (rotation) => {
 //	console.log('rotate: ', JSON.stringify(rotation));
-	//    console.log(JSON.stringify(rotation.y));
+//    console.log(JSON.stringify(rotation.y));
 
-     if (!core) return;
+//     if (!core) return;
 
 	    try {
 		    if (rotation.y != 0.)
 		    {
-				if ((Date.now() - lastTime) > 500)
-		    		core.services.RoonApiTransport.change_volume(mysettings.zone, 'relative_step', -1 * rotation.y * mysettings.sensitivity/20.);
+				if ((Date.now() - lastTime) > seekTimeOut)
+				{
+//				    console.log('volume: ', JSON.stringify(rotation.y));
+				    if (core)
+			    		core.services.RoonApiTransport.change_volume(mysettings.zone, 'relative_step', -1 * rotation.y * mysettings.sensitivity/20.);
+				}
 		    }
-	 	} catch (e) {}
+	 	} catch (e) {
+			console.log(e);
+	 	}
 	});
 
 	update_status();
@@ -331,7 +408,6 @@ function setup_spacenav() {
 
 setup_spacenav();
 update_status();
-
 
 roon.start_discovery();
 setInterval(() => { if (!spacenav || !spacenav.hid) setup_spacenav(); }, 1000);
