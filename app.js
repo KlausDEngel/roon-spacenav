@@ -14,6 +14,7 @@ var allDevices;
 var core;
 var playingstate = '';
 var wireless = '';
+var checkUSB = '';
 
 const SN_VENDOR_ID = 0x046D;
 const SN_PRODUCT_ID = 0xC626;
@@ -208,6 +209,7 @@ function getAllDevices()
 					{
 						console.log("Universal Receiver found.");
 						wireless = 'true';
+						checkUSB = 'true';
 					}
 					else
 						console.log("No devices found.");
@@ -389,7 +391,7 @@ function setup_spacenav() {
 		    {
 				if ((Date.now() - lastTime) > seekTimeOut)
 				{
-//				    console.log('volume: ', JSON.stringify(rotation.y));
+				    console.log('volume: ', JSON.stringify(rotation.y));
 				    if (core)
 			    		core.services.RoonApiTransport.change_volume(mysettings.zone, 'relative_step', -1 * rotation.y * mysettings.sensitivity/20.);
 				}
@@ -410,4 +412,16 @@ setup_spacenav();
 update_status();
 
 roon.start_discovery();
-setInterval(() => { if (!spacenav || !spacenav.hid) setup_spacenav(); }, 1000);
+setInterval(() => { 
+	if (checkUSB == 'true')
+	{
+		// check for USB reconnect
+		allDevices = HID.devices(SMW_VENDOR_ID, SMW_PRODUCT_ID);
+		if (allDevices.length)
+		{
+		    checkUSB = 'false';
+			setup_spacenav(); 
+		}
+	}
+	if (!spacenav || !spacenav.hid) setup_spacenav(); 
+}, 1000);
