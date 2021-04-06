@@ -225,7 +225,12 @@ function update_status() {
     if (spacenav &&spacenav.hid)
 		svc_status.set_status("Connected to 1 USB device.", false);
     else
+    {
 		svc_status.set_status("Could not find USB device.", true);
+	    // force restart on USB reconnect with Space Mouse Wireless
+	    if (checkUSB == 'true')
+	        process.exit(0);
+    }
 }
 
 function update_led() {
