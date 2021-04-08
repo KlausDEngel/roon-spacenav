@@ -15,7 +15,7 @@ var core;
 var playingstate = '';
 var wireless = '';
 var checkUSB = '';
-var batteryLevel = 100
+var batteryLevel = 100;
 
 const SN_VENDOR_ID = 0x046D;
 const SN_PRODUCT_ID = 0xC626;
