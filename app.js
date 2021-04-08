@@ -15,6 +15,7 @@ var core;
 var playingstate = '';
 var wireless = '';
 var checkUSB = '';
+var batteryLevel = 100
 
 const SN_VENDOR_ID = 0x046D;
 const SN_PRODUCT_ID = 0xC626;
@@ -34,7 +35,7 @@ var roon = new RoonApi({
     display_name:        'SpaceMouse Volume Control',
     display_version:     '1.2.0',
     publisher:           'Klaus Engel',
-    log_level: 			 'none', 
+    log_level:		 'none', 
     email:               'klaus.engel@gmail.com',
     website:             'https://github.com/KlausDEngel/roon-spacenav',
 
@@ -223,10 +224,16 @@ function getAllDevices()
 
 function update_status() {
     if (spacenav &&spacenav.hid)
-		svc_status.set_status("Connected to 1 USB device.", false);
+    {
+		svc_status.set_status("Connected to SpaceMouse Wireless. Battery: " + JSON.stringify(batteryLevel) + "%.", false);
+//		console.log("Connected to SpaceMouse Wireless. Battery: " + JSON.stringify(batteryLevel) + "%.");
+    }
     else
     {
-		svc_status.set_status("Could not find USB device.", true);
+    	if (wireless)
+			svc_status.set_status("Could not find USB device.", true);
+		else
+			svc_status.set_status("Could not find USB device.", true);
 	    // force restart on USB reconnect with Space Mouse Wireless
 	    if (checkUSB == 'true')
 	        process.exit(0);
@@ -303,6 +310,13 @@ SpaceNavigator.prototype.interpretData = function(data) {
     }
 
 //	console.log('translate: ', JSON.stringify(data));
+   if (data[0] === 0x17)
+   {
+   		batteryLevel = data[1];
+//		console.log('battery level: ', JSON.stringify(batteryLevel));
+		update_status();
+   		return;
+   }
    if (data[0] === 3)
     {
        	try {
@@ -396,7 +410,7 @@ function setup_spacenav() {
 		    {
 				if ((Date.now() - lastTime) > seekTimeOut)
 				{
-				    console.log('volume: ', JSON.stringify(rotation.y));
+//				    console.log('volume: ', JSON.stringify(rotation.y));
 				    if (core)
 			    		core.services.RoonApiTransport.change_volume(mysettings.zone, 'relative_step', -1 * rotation.y * mysettings.sensitivity/20.);
 				}
