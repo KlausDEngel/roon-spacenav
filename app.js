@@ -33,7 +33,7 @@ const playPauseTimeOut = 500;
 var roon = new RoonApi({
     extension_id:        'de.angisoft.roonspacenav',
     display_name:        'SpaceMouse Volume Control',
-    display_version:     '1.2.0',
+    display_version:     '1.2.1',
     publisher:           'Klaus Engel',
     log_level:		 'none', 
     email:               'klaus.engel@gmail.com',
