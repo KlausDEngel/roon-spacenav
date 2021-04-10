@@ -13,18 +13,13 @@ var events = require('events');
 var allDevices;
 var core;
 var playingstate = '';
-var wireless = '';
-var checkUSB = '';
-var batteryLevel = 100;
+var mute = 'unmute';
+var shuffleState = false;
 
 const SN_VENDOR_ID = 0x046D;
 const SN_PRODUCT_ID = 0xC626;
 const SMC_VENDOR_ID = 0x256F;
 const SMC_PRODUCT_ID = 0xC635;
-const SMW_VENDOR_ID = 0x256F;
-const SMW_PRODUCT_ID = 0xC62E;
-const UR_VENDOR_ID = 0x256F;
-const UR_PRODUCT_ID = 0xC652;
 
 const seekRate = 50;
 const seekTimeOut = 500;
@@ -33,9 +28,9 @@ const playPauseTimeOut = 500;
 var roon = new RoonApi({
     extension_id:        'de.angisoft.roonspacenav',
     display_name:        'SpaceMouse Volume Control',
-    display_version:     '1.2.1',
+    display_version:     '1.2.3',
     publisher:           'Klaus Engel',
-    log_level:		 'none', 
+    log_level: 			 'none', 
     email:               'klaus.engel@gmail.com',
     website:             'https://github.com/KlausDEngel/roon-spacenav',
 
@@ -73,10 +68,17 @@ var roon = new RoonApi({
 var mysettings = Object.assign({
     zone:             null,
     led: "whenplaying",
+    press: "playpause",
+    volumeAxis: "y",
+    invertVolume: "no",
+    seekAxis: "x",
+    invertSeek: "no",
+    left: "previous",
+    right: "next",
     sensitivity: 20,
     sensitivitySeek: 20,
     thresholdSeek: 25,
-    thresholdPlayPause: 40
+    thresholdPlayPause: 80
 }, roon.load_config("settings") || {});
 
 function makelayout(settings) {
@@ -101,6 +103,91 @@ function makelayout(settings) {
 	    { title: "Off",              value: "off" },
 	],
 	setting: "led",
+    });
+
+    l.layout.push({
+	type:    "dropdown",
+	title:   "Press Down",
+	values:  [
+	    { title: "Play/Pause",        value: "playpause" },
+	    { title: "Mute/Unmute",  	  value: "muteunmute" },
+	    { title: "Next Track",  	  value: "next" },
+	    { title: "Shuffle",           value: "shuffle" },
+	    { title: "Off",               value: "off" },
+	],
+	setting: "press",
+    });
+
+    l.layout.push({
+	type:    "dropdown",
+	title:   "Volume Axis",
+	values:  [
+	    { title: "X-Rotation",        value: "x" },
+	    { title: "Y-Rotation",  	  value: "y" },
+	    { title: "Z-Rotation",  	  value: "z" },
+	    { title: "Off",           value: "off" },
+	],
+	setting: "volumeAxis",
+    });
+
+    l.layout.push({
+	type:    "dropdown",
+	title:   "Invert Volume Axis",
+	values:  [
+	    { title: "Yes",       value: "yes" },
+	    { title: "No",  	  value: "no" },
+	],
+	setting: "invertVolume",
+    });
+
+    l.layout.push({
+	type:    "dropdown",
+	title:   "Seek Axis",
+	values:  [
+	    { title: "X-Translation",        value: "x" },
+	    { title: "Y-Translation",  	  value: "y" },
+	    { title: "Z-Translation",  	  value: "z" },
+	    { title: "Off",           value: "off" },
+	],
+	setting: "seekAxis",
+    });
+
+    l.layout.push({
+	type:    "dropdown",
+	title:   "Invert Seek Axis",
+	values:  [
+	    { title: "Yes",       value: "yes" },
+	    { title: "No",  	  value: "no" },
+	],
+	setting: "invertSeek",
+    });
+
+    l.layout.push({
+	type:    "dropdown",
+	title:   "Left Button",
+	values:  [
+	    { title: "Previous Track",        value: "previous" },
+	    { title: "Next Track",  value: "next" },
+	    { title: "Play/Pause",        value: "playpause" },
+	    { title: "Mute/Unmute",  	  value: "muteunmute" },
+	    { title: "Shuffle",              value: "shuffle" },
+	    { title: "Off",              value: "off" },
+	],
+	setting: "left",
+    });
+
+    l.layout.push({
+	type:    "dropdown",
+	title:   "Right Button",
+	values:  [
+	    { title: "Previous Track",        value: "previous" },
+	    { title: "Next Track",  value: "next" },
+	    { title: "Play/Pause",        value: "playpause" },
+	    { title: "Mute/Unmute",  	  value: "muteunmute" },
+	    { title: "Shuffle",              value: "shuffle" },
+	    { title: "Off",              value: "off" },
+	],
+	setting: "right",
     });
 
     if (settings.sensitivity != "none") {
@@ -189,92 +276,71 @@ roon.init_services({
 
 function getAllDevices()
 {
-    if (!allDevices) {
+    if (!allDevices) 
+    {
         allDevices = HID.devices(SMC_VENDOR_ID, SMC_PRODUCT_ID);
 		if (allDevices.length)
 			console.log("SpaceMouse Compact found.");
-		if (!allDevices.length) {
-	        allDevices = HID.devices(SMW_VENDOR_ID, SMW_PRODUCT_ID);
+		else
+		{
+	        allDevices = HID.devices(SN_VENDOR_ID, SN_PRODUCT_ID);
 			if (allDevices.length)
-			{
-				console.log("SpaceMouse Wireless found.");
-				wireless = 'true';
-			}
-			if (!allDevices.length) {
-		        allDevices = HID.devices(SN_VENDOR_ID, SN_PRODUCT_ID);
-				if (allDevices.length)
-					console.log("SpaceNavigator found.");
-				if (!allDevices.length) {
-			        allDevices = HID.devices(UR_VENDOR_ID, UR_PRODUCT_ID);
-					if (allDevices.length)
-					{
-						console.log("Universal Receiver found.");
-						wireless = 'true';
-						checkUSB = 'true';
-					}
-					else
-						console.log("No devices found.");
-				}
-	        }
+				console.log("SpaceNavigator found.");
+			else
+				console.log("No devices found.");
 
 		}
-    }
+	}
+
     return allDevices;
 }
 
 function update_status() {
-    if (spacenav &&spacenav.hid)
+    if (spacemouse &&spacemouse.hid)
     {
-		svc_status.set_status("Connected to SpaceMouse Wireless. Battery: " + JSON.stringify(batteryLevel) + "%.", false);
-//		console.log("Connected to SpaceMouse Wireless. Battery: " + JSON.stringify(batteryLevel) + "%.");
+		svc_status.set_status("Connected to SpaceMouse.", false);
     }
     else
     {
-    	if (wireless)
-			svc_status.set_status("Could not find USB device.", true);
-		else
-			svc_status.set_status("Could not find USB device.", true);
-	    // force restart on USB reconnect with Space Mouse Wireless
-	    if (checkUSB == 'true')
-	        process.exit(0);
+		svc_status.set_status("Could not find USB device.", true);
     }
 }
 
 function update_led() {
-    if (spacenav.hid) 
+    if (spacemouse.hid) 
     {
 		if (mysettings.led == "on") 
 		{
-	    	spacenav.hid.write([0x04,0x01]);
+	    	spacemouse.hid.write([0x04,0x01]);
         } 
         else 
         	if (mysettings.led == "whenplaying") 
         	{
 	    		if (playingstate == "playing")
-	        		spacenav.hid.write([0x04,0x01]);	
+	        		spacemouse.hid.write([0x04,0x01]);	
 	    		else
-					spacenav.hid.write([0x04,0x00]);
+					spacemouse.hid.write([0x04,0x00]);
         	} 
         	else 
         	{
-	    		spacenav.hid.write([0x04,0x00]);
+	    		spacemouse.hid.write([0x04,0x00]);
 			}
     }
 }
 
-function SpaceNavigator(index)
+function SpaceMouse(index)
 {
     if (!arguments.length) {
         index = 0;
     }
 
-    var spaceNavs = getAllDevices();
-    if (!spaceNavs.length) {
+    var spaceMice = getAllDevices();
+    if (!spaceMice.length) {
 //        console.log("No Space Mouse Compact or SpaceNavigator could be found");
         throw new Error("No Space Mouse could be found");
     }
-    if (index > spaceNavs.length || index < 0) {
-        throw new Error("Index " + index + " out of range, only " + spaceNavs.length + " Space Mice found");
+    if (index > spaceMice.length || index < 0) {
+        throw new Error("Index " + index + " out of range, only " + spaceMice.length + " Space Mice found");
     }
 
     if (this.hid) {
@@ -283,7 +349,7 @@ function SpaceNavigator(index)
     }
 
     try {
-		    this.hid = new HID.HID(spaceNavs[index].path);
+		    this.hid = new HID.HID(spaceMice[index].path);
     	//this.hid.write([0x04, 0x01]);
     	this.hid.on('data', this.interpretData.bind(this));
     } catch (e) {
@@ -291,11 +357,9 @@ function SpaceNavigator(index)
     }
  }
 
-util.inherits(SpaceNavigator, events.EventEmitter);
+util.inherits(SpaceMouse, events.EventEmitter);
 
-SpaceNavigator.prototype.interpretData = function(data) {
-    //http://www.mullist.com/2015/01/09/getting-node-hid-to-work-on-windows/
-    //https://www.3dconnexion.com/forum/viewtopic.php?t=3983
+SpaceMouse.prototype.interpretData = function(data) {
     function parseData(xl, xh, zl, zh, yl, yh)
     {
         function adjust(x) { // we get an improperly parsed two's complement int
@@ -312,74 +376,104 @@ SpaceNavigator.prototype.interpretData = function(data) {
 //	console.log('translate: ', JSON.stringify(data));
    if (data[0] === 0x17)
    {
-   		batteryLevel = data[1];
-//		console.log('battery level: ', JSON.stringify(batteryLevel));
-		update_status();
    		return;
    }
-   if (data[0] === 3)
+   if (data[0] === 0x03)
     {
        	try {
-        	if (data[1] == 2)
+        	if (data[1] == 0x02)
         	{
 //			    console.log('Button right!');
 			    if (core)
-	        		core.services.RoonApiTransport.control(mysettings.zone, 'next');
+			    {
+			    	if (mysettings.right == 'next')
+	        			core.services.RoonApiTransport.control(mysettings.zone, 'next');
+	        		else
+			    	if (mysettings.right == 'previous')
+	        			core.services.RoonApiTransport.control(mysettings.zone, 'previous');
+	        		else
+			    	if (mysettings.right == 'shuffle')
+	        			core.services.RoonApiTransport.change_settings(mysettings.zone, {shuffle: (shuffleState=!shuffleState)});
+	        		else
+			    	if (mysettings.right == 'playpause')
+						core.services.RoonApiTransport.control(mysettings.zone, 'playpause');
+	        		else
+			    	if (mysettings.right == 'muteunmute')
+			    	{
+
+			    		if (mute == 'unmute')
+			    			mute = 'mute';
+			    		else
+			    			mute = 'unmute';
+						core.services.RoonApiTransport.mute(mysettings.zone, mute);
+			    	}
+			    }
         	}
-	    	if (data[1] == 1)
+	    	if (data[1] == 0x01)
 	    	{
 //			    console.log('Button left!');
-			    if (core)
-	        		core.services.RoonApiTransport.control(mysettings.zone, 'previous');
+			    	if (mysettings.left == 'next')
+	        			core.services.RoonApiTransport.control(mysettings.zone, 'next');
+	        		else
+			    	if (mysettings.left == 'previous')
+	        			core.services.RoonApiTransport.control(mysettings.zone, 'previous');
+	        		else
+			    	if (mysettings.left == 'shuffle')
+	        			core.services.RoonApiTransport.change_settings(mysettings.zone, {shuffle: (shuffleState=!shuffleState)});
 	    	}
 
       	} catch (e) {}
       	return;
     }
-   var transform = parseData.apply(parseData, data.slice(1));
-	if (wireless == "true")
+    var transform = parseData.apply(parseData, data.slice(1));
+	if (data[0] ===  0x01)
 	{
-    	if (data[0] === 1)
-    	{
-			var transform2 = parseData.apply(parseData, data.slice(7));
-	    	this.emit('translate', transform);
-	    	this.emit('rotate', transform2);
-    	}
+    	this.emit('translate', transform);
     }
-	else
+    else
+    if (data[0] === 0x02)
     {
-    	if (data[0] === 1)
-    	{
-	    	this.emit('translate', transform);
-	    }
-	    else
-	    if (data[0] === 2)
-	    {
-    		this.emit('rotate', transform);
-    	}
-    }
+		this.emit('rotate', transform);
+	}
  };
 
 var lastTime;
 
-var spacenav;
-function setup_spacenav() {
-	try {
-	spacenav = new SpaceNavigator();
+var spacemouse;
+function setup_spacemouse() {
+
+	init_signal_handlers();
+
+try {
+	spacemouse = new SpaceMouse();
 	lastTime = Date.now();
-	spacenav.on('translate', (translation) => {
+
+	spacemouse.on('translate', (translation) => {
 //	    console.log('translate: ', JSON.stringify(translation));
 
 //     if (!core) return;
 
 	    try {
-		    if (Math.abs(translation.x) > mysettings.thresholdSeek/100.)
+	    	var signSeek = 1.;
+	    	if (mysettings.invertSeek == 'yes')
+	    		signSeek = -signSeek;
+	    	var valueSeek = 0.;
+	    	if (mysettings.seekAxis == 'x')
+		    	valueSeek = translation.x;
+		    else
+	    	if (mysettings.seekAxis == 'y')
+		    	valueSeek = translation.y;
+		    else
+	    	if (mysettings.seekAxis == 'z')
+		    	valueSeek = translation.z;
+
+		    if (Math.abs(valueSeek) > mysettings.thresholdSeek/100.)
 			{
 				if ((Date.now() - lastTime) > seekRate)
 			    {
 //				    console.log('seek: ', JSON.stringify(translation.x));
 				    if (core)
-			    		core.services.RoonApiTransport.seek(mysettings.zone, 'relative', -mysettings.sensitivitySeek/4. * translation.x);
+			    		core.services.RoonApiTransport.seek(mysettings.zone, 'relative', -mysettings.sensitivitySeek/4. * valueSeek * signSeek);
 			    	lastTime = Date.now();
 			    }
 			}
@@ -390,7 +484,29 @@ function setup_spacenav() {
 		    	{
 //				    console.log('Play/Pause!');
 				    if (core)
-						core.services.RoonApiTransport.control(mysettings.zone, 'playpause');
+				    {
+				    	if (mysettings.press == 'playpause')
+							core.services.RoonApiTransport.control(mysettings.zone, 'playpause');
+						else
+			    		if (mysettings.press == 'muteunmute')
+						{
+				    		if (mute == 'unmute')
+				    			mute = 'mute';
+				    		else
+				    			mute = 'unmute';
+							core.services.RoonApiTransport.mute(mysettings.zone, mute);
+						}
+						else
+			    		if (mysettings.press == 'next')
+						{
+		        			core.services.RoonApiTransport.control(mysettings.zone, 'next');
+						}
+						else
+			    		if (mysettings.press == 'shuffle')
+						{
+		        			core.services.RoonApiTransport.change_settings(mysettings.zone, {shuffle: (shuffleState=!shuffleState)});
+						}
+				    }
 			    	lastTime = Date.now();
 		    	}
 		    }
@@ -399,20 +515,33 @@ function setup_spacenav() {
 		}
 	});
 
-	spacenav.on('rotate', (rotation) => {
+	spacemouse.on('rotate', (rotation) => {
 //	console.log('rotate: ', JSON.stringify(rotation));
 //    console.log(JSON.stringify(rotation.y));
 
 //     if (!core) return;
 
 	    try {
-		    if (rotation.y != 0.)
+	    	var signVolume = -1.;
+	    	if (mysettings.invertVolume == 'yes')
+	    		signVolume = -signVolume;
+	    	var valueVolume = 0.;
+	    	if (mysettings.volumeAxis == 'x')
+		    	valueVolume = rotation.x;
+		    else
+	    	if (mysettings.volumeAxis == 'y')
+		    	valueVolume = rotation.y;
+		    else
+	    	if (mysettings.volumeAxis == 'z')
+		    	valueVolume = rotation.z;
+
+		    if (valueVolume != 0.)
 		    {
 				if ((Date.now() - lastTime) > seekTimeOut)
 				{
 //				    console.log('volume: ', JSON.stringify(rotation.y));
 				    if (core)
-			    		core.services.RoonApiTransport.change_volume(mysettings.zone, 'relative_step', -1 * rotation.y * mysettings.sensitivity/20.);
+			    		core.services.RoonApiTransport.change_volume(mysettings.zone, 'relative_step', signVolume * valueVolume * mysettings.sensitivity/20.);
 				}
 		    }
 	 	} catch (e) {
@@ -427,20 +556,20 @@ function setup_spacenav() {
     }	
 }
 
-setup_spacenav();
+setup_spacemouse();
 update_status();
 
 roon.start_discovery();
 setInterval(() => { 
-	if (checkUSB == 'true')
-	{
-		// check for USB reconnect
-		allDevices = HID.devices(SMW_VENDOR_ID, SMW_PRODUCT_ID);
-		if (allDevices.length)
-		{
-		    checkUSB = 'false';
-			setup_spacenav(); 
-		}
-	}
-	if (!spacenav || !spacenav.hid) setup_spacenav(); 
+	if (!spacemouse || !spacemouse.hid) setup_spacemouse(); 
 }, 1000);
+
+function init_signal_handlers() {
+    const handle = function(signal) {
+        process.exit(0);
+    };
+
+    // Register signal handlers to enable a graceful stop of the container
+    process.on('SIGTERM', handle);
+    process.on('SIGINT', handle);
+}
