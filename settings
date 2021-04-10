@@ -14,7 +14,7 @@ FRIENDLY_NAME="Space Mouse Volume Control"
 DESCRIPTION="A volume control Roon Extension for 3Dconnexion Space Mice."
 
 # Set the VERSION variable to the version number of your extension
-VERSION=1.2.0
+VERSION=1.2.3
 
 # Set the EMAIL variable to the address that users can use for support questions
 EMAIL=klaus.engel@gmail.com
