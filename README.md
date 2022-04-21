@@ -1,7 +1,7 @@
 # roon-spacenav
 A volume control Roon extension for 3Dconnexion SpaceNavigator and SpaceMouse Compact. Rotating the knob will change the volume, right button will skip to next track and left button will skip to previous track. Pressing down on the knob will Play/Pause. Translating the knob along the x-axis will seek. The extension also works on Raspberry Pi, so the Space Mice can be connected to a Pi Roon bridge directly. It uses RAW USB HID communication, so no drivers for the space mice are required.
 
-A version for the 3Dconnexion SpaceMouse Wireless will be available soon at https://rooextend.com/.
+A version for the 3Dconnexion SpaceMouse Wireless is available at https://rooextend.com/.
 
 Controls:
 - Rotate left and right to change volume
